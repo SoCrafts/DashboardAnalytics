@@ -1,0 +1,6 @@
+@DashboardAnalyticsAPI_HostAddress = http://localhost:5234
+
+GET {{DashboardAnalyticsAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
