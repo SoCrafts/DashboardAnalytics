@@ -5,9 +5,9 @@ export type LoginPayload = { email: string; password: string };
 
 export const register = (data: RegisterPayload) =>
   apiClient.post("/auth/register", {
-    Username: data.username,
-    Email: data.email,
-    Password: data.password,
+    username: data.username,
+    email: data.email,
+    password: data.password,
   });
 
 export const login = (data: LoginPayload) =>

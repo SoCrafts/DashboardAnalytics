@@ -3,6 +3,9 @@ using DashboardAnalyticsAPI.Infrastructure.Auth;
 using DashboardAnalyticsAPI.Infrastructure.Security;
 using Features.Auth.Login;
 using Features.Auth.Register;
+using Features.Datasets.CreateDataset;
+using Features.Datasets.GetDatasets;
+using Features.Datasets.DeleteDataset;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,20 +34,16 @@ builder.Services.AddDbContext<DashboardContext>(options =>
 );
 
 // CORS
-// In production, the React app is served from the same origin (wwwroot), so CORS is not required.
-// In development, allow the Vite dev server origin.
-if (builder.Environment.IsDevelopment())
+// Enable global CORS to ensure no cross-origin errors manifest when calling the API from the deployed frontend
+builder.Services.AddCors(options =>
 {
-    builder.Services.AddCors(options =>
+    options.AddPolicy("frontend", policy =>
     {
-        options.AddPolicy("frontend", policy =>
-        {
-            policy.WithOrigins("http://localhost:5173")
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
-}
+});
 
 // JWT
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -78,6 +77,22 @@ builder.Services.AddSwaggerGen(options =>
 
 
 var app = builder.Build();
+// Automatically apply EF Core migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DashboardContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Database migration failed.");
+        throw;
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -94,24 +109,39 @@ else
     app.UseHsts();
 }
 
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.UseHttpsRedirection();
 
 // Serve compiled React SPA from wwwroot (place the build output here before publishing).
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseCors("frontend");
-}
+app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/error", () => Results.Problem("An unexpected error occurred."));
+app.Map("/error", (HttpContext context, ILoggerFactory loggerFactory) => 
+{
+    var exceptionFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+    if (exceptionFeature?.Error is not null)
+    {
+        var logger = loggerFactory.CreateLogger("ExceptionHandler");
+        logger.LogError(exceptionFeature.Error, "An unhandled exception occurred while processing the request.");
+    }
+    return Results.Problem("An unexpected error occurred.");
+});
 
 // Map endpoints direttamente dalle feature
 Register.MapEndpoint(app);
 Login.MapEndpoint(app);
+CreateDatasetEndpoint.MapEndpoint(app);
+GetDatasetsEndpoint.MapEndpoint(app);
+DeleteDatasetEndpoint.MapEndpoint(app);
+
+// Diagnostic Ping endpoint
+app.MapGet("/api/ping", () => Results.Ok(new { Message = "pong" }));
 
 // SPA fallback (enables React router refresh/deep links)
 app.MapFallbackToFile("index.html");
