@@ -24,11 +24,13 @@ public static class GetDataset
         DashboardContext db,
         ClaimsPrincipal user)
     {
-        var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdString = user.FindFirst("sub")?.Value 
+                   ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
         if (!Guid.TryParse(userIdString, out var userId))
         {
             return Results.Unauthorized();
-        }
+        }   
 
         var dataset = await db.Datasets
             .Where(d => d.Id == id)
@@ -45,9 +47,14 @@ public static class GetDataset
             .Where(r => r.DatasetId == id)
             .CountAsync();
 
+        // Fetch columns from DB
+        var columns = await db.DatasetColumns
+            .Where(c => c.DatasetId == id)
+            .Select(c => new ColumnDto(c.Name, c.DataType))
+            .ToListAsync();
+
         var hasData = rowCount > 0;
         var status = hasData ? "Ready" : "Empty";
-        var columns = new List<ColumnDto>(); // Empty list for now
 
         var response = new Response(
             dataset.Id,

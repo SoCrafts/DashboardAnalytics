@@ -21,3 +21,10 @@ export const getDataset = async (id: string) => {
   const res = await apiClient.get(`/datasets/${id}`);
   return res.data;
 };
+
+export const uploadDataset = async (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await apiClient.post(`/datasets/${id}/upload`, formData);
+  return res.data;
+};

@@ -7,8 +7,10 @@ using Features.Datasets.CreateDataset;
 using Features.Datasets.GetDatasets;
 using Features.Datasets.GetDataset;
 using Features.Datasets.DeleteDataset;
+using Features.Datasets.UploadDataset;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,6 +49,7 @@ builder.Services.AddCors(options =>
 });
 
 // JWT
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -141,6 +144,7 @@ CreateDatasetEndpoint.MapEndpoint(app);
 GetDatasetsEndpoint.MapEndpoint(app);
 GetDatasetEndpoint.MapEndpoint(app);
 DeleteDatasetEndpoint.MapEndpoint(app);
+UploadDatasetEndpoint.MapEndpoint(app);
 
 // Diagnostic Ping endpoint
 app.MapGet("/api/ping", () => Results.Ok(new { Message = "pong" }));

@@ -4,5 +4,5 @@ public class DatasetRow
 {
     public Guid Id { get; set; }
     public Guid DatasetId { get; set; }
-    // public string Data { get; set; } = null!; // Omitted for now unless needed
+    public string JsonData { get; set; } = null!;
 }

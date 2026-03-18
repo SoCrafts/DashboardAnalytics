@@ -30,12 +30,12 @@ public class JwtTokenService : IJwtTokenService
         var keyBytes = Encoding.UTF8.GetBytes(key);
 
         var claims = new List<Claim>
-        {
-            new Claim("sub", user.Id.ToString()),
-            new Claim("email", user.Email),
-            new Claim("role", user.Role)
-        };
-
+{
+    new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), // keeps "sub"
+    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),   // also add this
+    new Claim("email", user.Email),
+    new Claim("role", user.Role)
+};
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
