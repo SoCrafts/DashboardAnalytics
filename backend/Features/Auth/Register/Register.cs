@@ -15,23 +15,35 @@ public static class Register
     {
         app.MapPost("/api/auth/register", async (Request req, DashboardContext db, IPasswordHasher passwordHasher) =>
         {
-            if (await db.Users.AnyAsync(u => u.Email == req.Email))
-                return Results.Conflict(new { Message = "Email already registered" });
-
-            var user = new User
+            try 
             {
-                Id = Guid.NewGuid(),
-                Username = req.Username,
-                Email = req.Email,
-                PasswordHash = passwordHasher.Hash(req.Password),
-                Role = "User",
-                CreatedAt = DateTime.UtcNow
-            };
+                if (await db.Users.AnyAsync(u => u.Email == req.Email))
+                    return Results.Conflict(new { Message = "Email already registered" });
 
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
+                var user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Username = req.Username,
+                    Email = req.Email,
+                    PasswordHash = passwordHasher.Hash(req.Password),
+                    Role = "User",
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            return Results.Ok(new { Message = "User registered successfully" });
+                db.Users.Add(user);
+                await db.SaveChangesAsync();
+
+                return Results.Ok(new { Message = "User registered successfully" });
+            }
+            catch (Exception ex)
+            {
+                // Directly return the exception as JSON so it doesn't kill the TCP connection.
+                return Results.Problem(
+                    title: "Registration Error",
+                    detail: ex.ToString(),
+                    statusCode: 500
+                );
+            }
         });
     }
 }
