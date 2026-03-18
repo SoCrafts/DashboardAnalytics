@@ -5,6 +5,7 @@ using Features.Auth.Login;
 using Features.Auth.Register;
 using Features.Datasets.CreateDataset;
 using Features.Datasets.GetDatasets;
+using Features.Datasets.GetDataset;
 using Features.Datasets.DeleteDataset;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -138,6 +139,7 @@ Register.MapEndpoint(app);
 Login.MapEndpoint(app);
 CreateDatasetEndpoint.MapEndpoint(app);
 GetDatasetsEndpoint.MapEndpoint(app);
+GetDatasetEndpoint.MapEndpoint(app);
 DeleteDatasetEndpoint.MapEndpoint(app);
 
 // Diagnostic Ping endpoint

@@ -16,3 +16,8 @@ export const createDataset = async (data: {
 export const deleteDataset = async (id: string) => {
   await apiClient.delete(`/datasets/${id}`);
 };
+
+export const getDataset = async (id: string) => {
+  const res = await apiClient.get(`/datasets/${id}`);
+  return res.data;
+};

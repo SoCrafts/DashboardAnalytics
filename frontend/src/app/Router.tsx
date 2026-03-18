@@ -2,6 +2,7 @@ import { createBrowserRouter, Link, RouterProvider, Navigate } from "react-route
 import LoginPage from "@/features/auth/pages/LoginPage.tsx";
 import RegisterPage from "@/features/auth/pages/RegisterPage.tsx";
 import { DashboardPage } from "@/features/datasets/pages/DashboardPage.tsx";
+import { DatasetDetailPage } from "@/features/datasets/pages/DatasetDetailPage.tsx";
 import { useNavigate } from "react-router-dom";
 function HomePage() {
   const navigate = useNavigate();
@@ -49,6 +50,14 @@ export const router = createBrowserRouter([
         <DashboardPage />
       </ProtectedRoute>
     ) 
+  },
+  {
+    path: "/datasets/:id",
+    element: (
+      <ProtectedRoute>
+        <DatasetDetailPage />
+      </ProtectedRoute>
+    )
   },
 ]);
 
