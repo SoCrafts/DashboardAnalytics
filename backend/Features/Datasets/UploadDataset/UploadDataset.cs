@@ -2,8 +2,11 @@ using DashboardAnalyticsAPI.Domain;
 using DashboardAnalyticsAPI.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
-using System.Text;
 using System.Security.Claims;
+using MiniExcelLibs;
+using System.IO;
+
+
 namespace Features.Datasets.UploadDataset;
 
 public class UploadDatasetResponse
@@ -21,11 +24,8 @@ public static class UploadDatasetHandler
         DashboardContext db,
         HttpContext httpContext)
     {
-        var user = httpContext.User; 
-        var userIdString = user.FindFirst("sub")?.Value 
-                           ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+        var userId = GetUserId(httpContext);
+        if (userId == null)
         {
             return Results.Unauthorized();
         }
@@ -41,91 +41,105 @@ public static class UploadDatasetHandler
             return Results.BadRequest(new { Message = "No file uploaded." });
         }
 
-        using var stream = file.OpenReadStream();
-        using var reader = new StreamReader(stream);
-        
-        var headerLine = await reader.ReadLineAsync();
-        if (string.IsNullOrWhiteSpace(headerLine))
+        try
         {
-            return Results.BadRequest(new { Message = "CSV file is empty or missing headers." });
-        }
+            var rows = ParseFile(file);
 
-        // Robust Parsing for Headers
-        var headers = ParseCsvLine(headerLine);
-        if (headers.Count == 0)
-        {
-            return Results.BadRequest(new { Message = "Could not detect headers." });
-        }
-        
-        var rows = new List<string[]>();
-        string? line;
-        while ((line = await reader.ReadLineAsync()) != null)
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            
-            // Robust Parsing for Data Rows
-            var parts = ParseCsvLine(line).ToArray();
-            
-            // Normalize column count
-            if (parts.Length < headers.Count)
+            if (rows.Count == 0)
             {
-                var newParts = new string[headers.Count];
-                Array.Copy(parts, newParts, parts.Length);
-                for (int i = parts.Length; i < headers.Count; i++) newParts[i] = "";
-                parts = newParts;
-            }
-            else if (parts.Length > headers.Count)
-            {
-                parts = parts.Take(headers.Count).ToArray();
+                return Results.BadRequest(new { Message = "File has no data rows." });
             }
 
-            rows.Add(parts);
-        }
+            var headers = rows[0].Keys.ToList();
+            if (headers.Count == 0)
+            {
+                return Results.BadRequest(new { Message = "Could not detect headers." });
+            }
 
-        if (rows.Count == 0)
+            var detectedColumns = DetectColumns(datasetId, rows, headers);
+            var (insertedRowsCount, detectedColumnsCount) = await SaveDatasetData(db, datasetId, detectedColumns, rows, headers);
+
+            return Results.Ok(new UploadDatasetResponse
+            {
+                Message = "Upload successful",
+                RowsInserted = insertedRowsCount,
+                ColumnsDetected = detectedColumnsCount
+            });
+        }
+        catch (Exception ex)
         {
-            return Results.BadRequest(new { Message = "CSV file has no data rows." });
+            return Results.BadRequest(new { Message = $"Error parsing file: {ex.Message}" });
+        }
+    }
+
+    private static Guid? GetUserId(HttpContext httpContext)
+    {
+        var user = httpContext.User;
+        var userIdString = user.FindFirst("sub")?.Value
+                           ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+        {
+            return null;
         }
 
-        // Column Type Detection
+        return userId;
+    }
+
+    private static List<IDictionary<string, object>> ParseFile(IFormFile file)
+{
+    using var stream = file.OpenReadStream();
+    var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+    
+    ExcelType excelType = extension switch
+    {
+        ".csv" => ExcelType.CSV,
+        ".xlsx" => ExcelType.XLSX,
+        _ => ExcelType.UNKNOWN
+    };
+
+    if (excelType == ExcelType.UNKNOWN)
+    {
+        throw new Exception("Unsupported file format. Please upload .csv or .xlsx");
+    }
+
+    var rows = stream.Query(useHeaderRow: true, excelType: excelType)
+                     .Cast<IDictionary<string, object>>()
+                     .Select(CleanRow)              // 🔥 THIS FIXES EVERYTHING
+                     .Where(r => r.Count > 0)
+                     .ToList();
+
+    return rows;
+}
+
+    private static List<DatasetColumn> DetectColumns(Guid datasetId, List<IDictionary<string, object>> rows, List<string> headers)
+    {
         var detectedColumns = new List<DatasetColumn>();
-        for (int i = 0; i < headers.Count; i++)
+        foreach (var header in headers)
         {
-            var headerName = headers[i];
-            bool allNumber = true, allDate = true, allBool = true;
-            bool hasValue = false;
-
-            foreach (var row in rows)
-            {
-                var val = row[i];
-                if (string.IsNullOrEmpty(val)) continue;
-
-                hasValue = true;
-                if (allNumber && !double.TryParse(val, out _)) allNumber = false;
-                if (allDate && !DateTime.TryParse(val, out _)) allDate = false;
-                if (allBool && !(val.Equals("true", StringComparison.OrdinalIgnoreCase) || val.Equals("false", StringComparison.OrdinalIgnoreCase))) allBool = false;
-            }
-
-            string dataType = "string";
-            if (hasValue)
-            {
-                if (allNumber) dataType = "number";
-                else if (allDate) dataType = "date";
-                else if (allBool) dataType = "boolean";
-            }
-
+            string dataType = DetectDataType(rows, header);
             detectedColumns.Add(new DatasetColumn
             {
                 Id = Guid.NewGuid(),
                 DatasetId = datasetId,
-                Name = headerName,
+                Name = header,
                 DataType = dataType
             });
         }
+        return detectedColumns;
+    }
 
+    private static async Task<(int RowsInserted, int ColumnsDetected)> SaveDatasetData(
+        DashboardContext db,
+        Guid datasetId,
+        List<DatasetColumn> detectedColumns,
+        List<IDictionary<string, object>> rows,
+        List<string> headers)
+    {
         // Transactional clear and save
         var existingColumns = await db.DatasetColumns.Where(c => c.DatasetId == datasetId).ToListAsync();
         var existingRows = await db.DatasetRows.Where(r => r.DatasetId == datasetId).ToListAsync();
+        
         db.DatasetColumns.RemoveRange(existingColumns);
         db.DatasetRows.RemoveRange(existingRows);
 
@@ -135,28 +149,13 @@ public static class UploadDatasetHandler
         foreach (var row in rows)
         {
             var rowDict = new Dictionary<string, object?>();
-            for (int i = 0; i < headers.Count; i++)
+            foreach (var header in headers)
             {
-                var headerName = headers[i];
-                var val = row[i];
-                var type = detectedColumns[i].DataType;
+                var value = row.TryGetValue(header, out var val) ? val : null;
 
-                if (string.IsNullOrEmpty(val))
-                {
-                    rowDict[headerName] = null;
-                }
-                else if (type == "number" && double.TryParse(val, out var num))
-                {
-                    rowDict[headerName] = num;
-                }
-                else if (type == "boolean" && bool.TryParse(val, out var b))
-                {
-                    rowDict[headerName] = b;
-                }
-                else
-                {
-                    rowDict[headerName] = val;
-                }
+var columnType = detectedColumns.First(c => c.Name == header).DataType;
+
+rowDict[header] = EnforceType(value, columnType);
             }
 
             var jsonData = JsonSerializer.Serialize(rowDict);
@@ -171,68 +170,102 @@ public static class UploadDatasetHandler
         await db.DatasetRows.AddRangeAsync(datasetRows);
         await db.SaveChangesAsync();
 
-        return Results.Ok(new UploadDatasetResponse
-        {
-            Message = "Upload successful",
-            RowsInserted = datasetRows.Count,
-            ColumnsDetected = detectedColumns.Count
-        });
+        return (datasetRows.Count, detectedColumns.Count);
     }
 
-    /// <summary>
-    /// Robust CSV line parser handling quotes and commas inside quotes.
-    /// </summary>
-    private static List<string> ParseCsvLine(string line)
+    private static object? EnforceType(object? value, string columnType)
+{
+    if (value == null)
+        return null;
+
+    return columnType switch
     {
-        var result = new List<string>();
-        if (string.IsNullOrWhiteSpace(line)) return result;
+        "number" => value is double ? value : null,
+        "date" => value is DateTime ? value : null,
+        "boolean" => value is bool ? value : null,
+        _ => value.ToString()
+    };
+}
 
-        var currentField = new StringBuilder();
-        bool inQuotes = false;
+    private static string DetectDataType(List<IDictionary<string, object>> rows, string header)
+{
+    int total = 0;
+    int numbers = 0, dates = 0, bools = 0;
 
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
+    foreach (var row in rows.Take(100))
+    {
+        if (!row.TryGetValue(header, out var val) || val == null)
+            continue;
 
-            if (inQuotes)
-            {
-                if (c == '"')
-                {
-                    // Check for escaped quote ""
-                    if (i + 1 < line.Length && line[i + 1] == '"')
-                    {
-                        currentField.Append('"');
-                        i++; // Skip the next quote
-                    }
-                    else
-                    {
-                        inQuotes = false;
-                    }
-                }
-                else
-                {
-                    currentField.Append(c);
-                }
-            }
-            else
-            {
-                if (c == '"')
-                {
-                    inQuotes = true;
-                }
-                else if (c == ',')
-                {
-                    result.Add(currentField.ToString().Trim());
-                    currentField.Clear();
-                }
-                else
-                {
-                    currentField.Append(c);
-                }
-            }
-        }
-        
-        result.Add(currentField.ToString().Trim());
-        return result;
+        total++;
+
+        if (val is double) numbers++;
+        else if (val is DateTime) dates++;
+        else if (val is bool) bools++;
     }
+
+    if (total == 0) return "string";
+
+    double threshold = 0.8; // 80% rule
+
+    if ((double)numbers / total > threshold) return "number";
+    if ((double)dates / total > threshold) return "date";
+    if ((double)bools / total > threshold) return "boolean";
+
+    return "string";
+}
+private static object? NormalizeValue(object? value)
+{
+    if (value == null)
+        return null;
+
+    var str = value.ToString()?.Trim();
+
+    if (string.IsNullOrEmpty(str))
+        return null;
+
+    var lower = str.ToLowerInvariant();
+
+    // ✅ Boolean (extended support)
+    if (lower is "true" or "false")
+        return lower == "true";
+
+    if (lower is "yes" or "no")
+        return lower == "yes";
+
+    // ✅ Handle NaN
+    if (lower == "nan")
+        return null;
+
+    // ✅ Number (supports scientific notation like 1e3)
+    if (double.TryParse(str,
+        System.Globalization.NumberStyles.Any,
+        System.Globalization.CultureInfo.InvariantCulture,
+        out var num))
+        return num;
+
+    // ✅ Date
+    if (DateTime.TryParse(str,
+        System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.None,
+        out var date))
+        return date;
+
+    return str;
+}
+private static IDictionary<string, object> CleanRow(IDictionary<string, object> row)
+{
+    var cleaned = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var kv in row)
+    {
+        var key = kv.Key?.Trim();
+        if (string.IsNullOrEmpty(key))
+            continue;
+
+        cleaned[key] = NormalizeValue(kv.Value)!;
+    }
+
+    return cleaned;
+}
 }

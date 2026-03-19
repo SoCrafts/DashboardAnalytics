@@ -28,3 +28,10 @@ export const uploadDataset = async (id: string, file: File) => {
   const res = await apiClient.post(`/datasets/${id}/upload`, formData);
   return res.data;
 };
+
+export const getDatasetRows = async (id: string, page = 1, pageSize = 100) => {
+  const res = await apiClient.get(`/datasets/${id}/rows`, {
+    params: { page, pageSize },
+  });
+  return res.data;
+};
