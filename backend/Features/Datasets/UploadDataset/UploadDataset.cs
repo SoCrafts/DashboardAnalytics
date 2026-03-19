@@ -86,7 +86,7 @@ public static class UploadDatasetHandler
         return userId;
     }
 
-    private static List<IDictionary<string, object>> ParseFile(IFormFile file)
+    internal static List<IDictionary<string, object>> ParseFile(IFormFile file)
 {
     using var stream = file.OpenReadStream();
     var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -112,7 +112,7 @@ public static class UploadDatasetHandler
     return rows;
 }
 
-    private static List<DatasetColumn> DetectColumns(Guid datasetId, List<IDictionary<string, object>> rows, List<string> headers)
+    internal static List<DatasetColumn> DetectColumns(Guid datasetId, List<IDictionary<string, object>> rows, List<string> headers)
     {
         var detectedColumns = new List<DatasetColumn>();
         foreach (var header in headers)
@@ -151,11 +151,17 @@ public static class UploadDatasetHandler
             var rowDict = new Dictionary<string, object?>();
             foreach (var header in headers)
             {
-                var value = row.TryGetValue(header, out var val) ? val : null;
+                // Capture raw value
+                var rawVal = row.TryGetValue(header, out var val) ? val?.ToString() : null;
+                
+                // Get detected column type
+                var columnType = detectedColumns.First(c => c.Name == header).DataType;
+                
+                // Normalize and Enforce Type
+                var normalized = NormalizeValue(rawVal);
+                var typedValue = EnforceType(normalized, columnType);
 
-var columnType = detectedColumns.First(c => c.Name == header).DataType;
-
-rowDict[header] = EnforceType(value, columnType);
+                rowDict[header] = new { value = typedValue, raw = rawVal };
             }
 
             var jsonData = JsonSerializer.Serialize(rowDict);
@@ -173,7 +179,7 @@ rowDict[header] = EnforceType(value, columnType);
         return (datasetRows.Count, detectedColumns.Count);
     }
 
-    private static object? EnforceType(object? value, string columnType)
+    internal static object? EnforceType(object? value, string columnType)
 {
     if (value == null)
         return null;
@@ -187,7 +193,7 @@ rowDict[header] = EnforceType(value, columnType);
     };
 }
 
-    private static string DetectDataType(List<IDictionary<string, object>> rows, string header)
+    internal static string DetectDataType(List<IDictionary<string, object>> rows, string header)
 {
     int total = 0;
     int numbers = 0, dates = 0, bools = 0;
@@ -214,7 +220,7 @@ rowDict[header] = EnforceType(value, columnType);
 
     return "string";
 }
-private static object? NormalizeValue(object? value)
+internal static object? NormalizeValue(object? value)
 {
     if (value == null)
         return null;
@@ -253,7 +259,7 @@ private static object? NormalizeValue(object? value)
 
     return str;
 }
-private static IDictionary<string, object> CleanRow(IDictionary<string, object> row)
+internal static IDictionary<string, object> CleanRow(IDictionary<string, object> row)
 {
     var cleaned = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 

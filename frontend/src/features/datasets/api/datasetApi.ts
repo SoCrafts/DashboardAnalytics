@@ -35,3 +35,10 @@ export const getDatasetRows = async (id: string, page = 1, pageSize = 100) => {
   });
   return res.data;
 };
+
+export const previewDataset = async (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await apiClient.post(`/datasets/${id}/preview`, formData);
+  return res.data;
+};

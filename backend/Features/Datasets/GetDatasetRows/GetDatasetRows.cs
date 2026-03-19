@@ -10,6 +10,7 @@ public static class GetDatasetRows
     public record Request(int Page = 1, int PageSize = 100);
     
     public record Response(
+        IEnumerable<DashboardAnalyticsAPI.Domain.DatasetColumn> Columns,
         IEnumerable<Dictionary<string, object?>> Rows,
         int TotalRows,
         int Page,
@@ -40,20 +41,26 @@ public static class GetDatasetRows
             return Results.NotFound(new { Message = "Dataset not found" });
         }
 
+        var columns = await db.DatasetColumns
+            .Where(c => c.DatasetId == id)
+            .ToListAsync();
+
         var totalRows = await db.DatasetRows
             .Where(r => r.DatasetId == id)
             .CountAsync();
 
         var rowsJson = await db.DatasetRows
             .Where(r => r.DatasetId == id)
-            .OrderBy(r => r.Id) // Basic ordering
+            .OrderBy(r => r.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(r => r.JsonData)
             .ToListAsync();
 
-        var rows = rowsJson.Select(j => JsonSerializer.Deserialize<Dictionary<string, object?>>(j)).ToList()!;
+        var rows = rowsJson
+            .Select(j => JsonSerializer.Deserialize<Dictionary<string, object?>>(j))
+            .ToList()!;
 
-        return Results.Ok(new Response(rows, totalRows, request.Page, request.PageSize));
+        return Results.Ok(new Response(columns, rows!, totalRows, request.Page, request.PageSize));
     }
 }

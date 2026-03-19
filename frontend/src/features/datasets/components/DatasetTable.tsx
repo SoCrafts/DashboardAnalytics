@@ -9,42 +9,61 @@ interface DatasetTableProps {
 export const DatasetTable: React.FC<DatasetTableProps> = ({ columns, rows, totalRows }) => {
   if (!columns || columns.length === 0 || rows.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-gray-500 bg-white rounded-xl border border-gray-100">
         No rows found in this dataset.
       </div>
     );
   }
+
+  const renderCell = (cellData: any) => {
+    // Handle both new {value, raw} structure and legacy flat structure
+    const value = cellData && typeof cellData === 'object' && 'value' in cellData ? cellData.value : cellData;
+    const raw = cellData && typeof cellData === 'object' && 'raw' in cellData ? cellData.raw : undefined;
+
+    if (value === null || value === undefined) {
+      return <span className="text-gray-400 italic">NULL</span>;
+    }
+
+    const valueStr = typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+    const isClickable = raw !== undefined && raw !== null && String(value) !== String(raw);
+
+    return (
+      <div 
+        className={`${isClickable ? 'cursor-help border-b border-dashed border-primary/40' : ''}`}
+        title={isClickable ? `Original: ${raw}` : undefined}
+        onClick={() => {
+          if (isClickable) {
+            alert(`Original value: ${raw}`);
+          }
+        }}
+      >
+        {valueStr}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "8px", background: "var(--bg)" }}>
-      <table style={{ minWidth: "100%", borderCollapse: "collapse" }}>
-        <thead style={{ background: "var(--social-bg)" }}>
+    <div className="overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-sm">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.name}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  textAlign: "left",
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  color: "var(--text)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  borderBottom: "1px solid var(--border)"
-                }}
+                className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
               >
                 {col.name}
-                <span style={{ marginLeft: "0.25rem", fontSize: "10px", color: "var(--text)", opacity: 0.6 }}>({col.type})</span>
+                <span className="ml-2 lowercase font-normal opacity-60">({col.type || (col as any).dataType})</span>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white divide-y divide-gray-200">
           {rows.map((row, idx) => (
-            <tr key={idx} style={{ borderBottom: "1px solid var(--border)" }}>
+            <tr key={idx} className="hover:bg-gray-50 transition-colors">
               {columns.map((col) => (
-                <td key={col.name} style={{ padding: "1rem 1.5rem", whiteSpace: "nowrap", fontSize: "0.875rem", color: "var(--text)" }}>
-                  {formatValue(row[col.name])}
+                <td key={col.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  {renderCell(row[col.name])}
                 </td>
               ))}
             </tr>
@@ -52,17 +71,10 @@ export const DatasetTable: React.FC<DatasetTableProps> = ({ columns, rows, total
         </tbody>
       </table>
       {totalRows > rows.length && (
-        <div style={{ padding: "0.75rem", fontSize: "0.875rem", color: "var(--text)", textAlign: "center", background: "var(--social-bg)", opacity: 0.8 }}>
+        <div className="px-6 py-3 text-sm text-gray-500 text-center bg-gray-50 border-t border-gray-200">
           Showing first {rows.length} of {totalRows} rows.
         </div>
       )}
     </div>
   );
 };
-
-function formatValue(val: any): string {
-  if (val === null || val === undefined) return "-";
-  if (typeof val === "boolean") return val ? "Yes" : "No";
-  if (typeof val === "object") return JSON.stringify(val);
-  return String(val);
-}
