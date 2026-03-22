@@ -1,11 +1,13 @@
-import "../App.css";
 import { Providers } from "./provider.tsx";
 import { Router } from "./Router.tsx";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function App() {
   return (
     <Providers>
-      <Router />
+      <TooltipProvider>
+        <Router />
+      </TooltipProvider>
     </Providers>
   );
 }

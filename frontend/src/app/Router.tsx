@@ -1,65 +1,129 @@
-import { createBrowserRouter, Link, RouterProvider, Navigate } from "react-router-dom";
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+  Outlet,
+  Link,
+  Navigate,
+  useNavigate,
+} from "@tanstack/react-router";
 import LoginPage from "@/features/auth/pages/LoginPage.tsx";
 import RegisterPage from "@/features/auth/pages/RegisterPage.tsx";
 import { DashboardPage } from "@/features/datasets/pages/DashboardPage.tsx";
 import { DatasetDetailPage } from "@/features/datasets/pages/DatasetDetailPage.tsx";
-import { useNavigate } from "react-router-dom";
+
+// --- ROOT ROUTE ---
+const rootRoute = createRootRoute({
+  component: () => (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      <Outlet />
+    </div>
+  ),
+});
+
+// --- COMPONENTS FOR ROUTES ---
 function HomePage() {
   const navigate = useNavigate();
+  const isAuthenticated = localStorage.getItem("token") !== null;
+
   return (
-    <div style={{ padding: "2rem", textAlign: "center" }}>
-      <h1>Dashboard Analytics</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center bg-white">
+      <h1 className="text-5xl font-extrabold tracking-tight text-slate-900 mb-4">Dashboard Analytics</h1>
 
-      {localStorage.getItem("email") && localStorage.getItem("token") ? (
-        <>
-          <p>You are logged in with {localStorage.getItem("email")}</p>
-          <Link to="/dashboard">Dashboard</Link>
-          <br />
-          <button onClick={() => {
-            localStorage.removeItem("token");
-            localStorage.removeItem("email");
-            navigate("/login");
-          }}>Logout</button>
-        </>
+      {isAuthenticated ? (
+        <div className="space-y-4">
+          <p className="text-lg text-slate-600">Welcome back, <span className="font-semibold text-indigo-600">{localStorage.getItem("email")}</span></p>
+          <div className="flex gap-4 justify-center">
+            <Link to="/dashboard" className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Go to Dashboard</Link>
+            <button
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("email");
+                navigate({ to: "/login" });
+              }}
+              className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
       ) : (
-        <>
-          <p>You are not logged in</p>
-          <Link to="/login">Login</Link>
-          <br />
-          <Link to="/register">Register</Link>
-        </>
+        <div className="space-y-4">
+          <p className="text-lg text-slate-600 font-medium">Please login to access your datasets</p>
+          <div className="flex gap-4 justify-center">
+            <Link to="/login" className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Login</Link>
+            <Link to="/register" className="px-6 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition">Register</Link>
+          </div>
+        </div>
       )}
-
     </div>
   );
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = localStorage.getItem("token") !== null;
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 }
 
-export const router = createBrowserRouter([
-  { path: "/", element: <HomePage /> },
-  { path: "/login", element: <LoginPage /> },
-  { path: "/register", element: <RegisterPage /> },
-  { 
-    path: "/dashboard", 
-    element: (
-      <ProtectedRoute>
-        <DashboardPage />
-      </ProtectedRoute>
-    ) 
-  },
-  {
-    path: "/datasets/:id",
-    element: (
+// --- ROUTE DEFINITIONS ---
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: HomePage,
+});
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/register",
+  component: RegisterPage,
+});
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  component: () => (
+    <ProtectedRoute>
+      <DashboardPage />
+    </ProtectedRoute>
+  ),
+});
+
+const datasetDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/datasets/$id",
+  component: () => {
+    // Note: In a real app we'd use route params from TanStack Router
+    return (
       <ProtectedRoute>
         <DatasetDetailPage />
       </ProtectedRoute>
-    )
+    );
   },
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  loginRoute,
+  registerRoute,
+  dashboardRoute,
+  datasetDetailRoute,
 ]);
+
+export const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
 
 export function Router() {
   return <RouterProvider router={router} />;

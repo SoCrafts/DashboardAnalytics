@@ -1,5 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { uploadDataset } from '../api/datasetApi';
+import React, { useRef } from 'react';
+import { useUploadDataset } from '../api/datasetApi';
+import { Button } from "@/components/ui/button";
+import { Loader2, FileUp, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface DatasetUploadProps {
   datasetId: string;
@@ -12,61 +15,62 @@ export const DatasetUpload: React.FC<DatasetUploadProps> = ({
   onUploadSuccess,
   onUploadStart 
 }) => {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadMutation = useUploadDataset();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
-    setError("");
     if (onUploadStart) onUploadStart();
 
     try {
-      const res = await uploadDataset(datasetId, file);
-      onUploadSuccess(res);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || "Failed to upload dataset");
+      const res = await uploadMutation.mutateAsync({ id: datasetId, file });
+      onUploadSuccess(res.data);
+    } catch (err) {
+      console.error("Upload failed", err);
     } finally {
-      setUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     }
   };
 
+  const isUploading = uploadMutation.isPending;
+  const error = uploadMutation.error;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <div className="flex flex-col gap-3">
       <input 
         type="file" 
         accept=".csv,.xlsx,.xls" 
         ref={fileInputRef} 
-        style={{ display: "none" }} 
+        className="hidden"
         onChange={handleFileChange} 
       />
       
-      <button 
+      <Button 
         onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        style={{
-          padding: "0.5rem 1rem",
-          borderRadius: "6px",
-          fontWeight: 500,
-          transition: "all 0.2s",
-          cursor: uploading ? "not-allowed" : "pointer",
-          background: uploading ? "var(--border)" : "var(--accent)",
-          color: uploading ? "var(--text)" : "white",
-          border: "none",
-          width: "fit-content"
-        }}
+        disabled={isUploading}
+        size="lg"
+        className="w-fit gap-2 font-bold shadow-md h-12 rounded-xl"
       >
-        {uploading ? "Uploading..." : "Upload Dataset (CSV/Excel)"}
-      </button>
+        {isUploading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-white" />
+        ) : (
+          <FileUp className="h-4 w-4" />
+        )}
+        {isUploading ? "Uploading..." : "Upload Dataset (CSV/Excel)"}
+      </Button>
 
       {error && (
-        <p style={{ color: "#ef4444", fontSize: "0.875rem", marginTop: "0.25rem" }}>{error}</p>
+        <Alert variant="destructive" className="max-w-md rounded-xl border-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Upload Error</AlertTitle>
+          <AlertDescription>
+            {(error as any)?.response?.data?.message || error.message || "Failed to upload dataset"}
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );

@@ -9,8 +9,7 @@ namespace Features.Datasets.PreviewDataset;
 public static class PreviewDataset
 {
     public record ColumnResponse(string Name, string DataType);
-    public record RowValue(object? Value, string? Raw);
-    public record Response(IEnumerable<ColumnResponse> Columns, IEnumerable<Dictionary<string, RowValue>> Rows);
+    public record Response(IEnumerable<ColumnResponse> Columns, IEnumerable<Dictionary<string, object?>> Rows);
 
     public static async Task<IResult> Handle(
         Guid id,
@@ -57,20 +56,9 @@ public static class PreviewDataset
                 detectedColumns.Add(new ColumnResponse(header, dataType));
             }
 
-            var previewRows = new List<Dictionary<string, RowValue>>();
-            foreach (var row in allRows.Take(50))
-            {
-                var rowDict = new Dictionary<string, RowValue>();
-                foreach (var col in detectedColumns)
-                {
-                    var rawVal = row.TryGetValue(col.Name, out var val) ? val?.ToString() : null;
-                    var normalized = UploadDatasetHandler.NormalizeValue(rawVal);
-                    var typedValue = UploadDatasetHandler.EnforceType(normalized, col.DataType);
-                    
-                    rowDict[col.Name] = new RowValue(typedValue, rawVal);
-                }
-                previewRows.Add(rowDict);
-            }
+            var previewRows = allRows.Take(50)
+                .Select(row => row.ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+                .ToList();
 
             return Results.Ok(new Response(detectedColumns, previewRows));
         }

@@ -1,5 +1,9 @@
+import { useNavigate } from '@tanstack/react-router';
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, Calendar, Database } from "lucide-react";
 
 interface DatasetCardProps {
   id: string;
@@ -8,8 +12,6 @@ interface DatasetCardProps {
   createdAt: string;
   onDelete: (id: string) => void;
   isDeleting?: boolean;
-
-  // 🔥 optional future props
   rowCount?: number;
 }
 
@@ -23,67 +25,70 @@ export const DatasetCard: React.FC<DatasetCardProps> = ({
   rowCount = 0
 }) => {
   const navigate = useNavigate();
-  const date = new Date(createdAt).toLocaleDateString();
+  const date = new Date(createdAt).toLocaleDateString(undefined, { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
 
   const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation(); // 🔥 prevents navigation
+    e.stopPropagation();
     if (confirm("Delete this dataset?")) {
       onDelete(id);
     }
   };
 
   return (
-    <div
-      onClick={() => navigate(`/datasets/${id}`)}
-      className="group cursor-pointer bg-white p-5 rounded-xl border border-gray-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-200"
+    <Card 
+      onClick={() => navigate({ to: `/datasets/${id}` })}
+      className="group cursor-pointer border-slate-200 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/50 transition-all duration-300 overflow-hidden flex flex-col h-full"
     >
-      {/* TOP */}
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors">
-            {name}
-          </h3>
-          <p className="text-xs text-gray-400 mt-1">
-            Created {date}
-          </p>
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+              {name}
+            </CardTitle>
+            <div className="flex items-center text-xs text-slate-400 font-medium gap-1.5">
+              <Calendar className="h-3 w-3" />
+              <span>Created {date}</span>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
+      </CardHeader>
+      
+      <CardContent className="flex-grow">
+        <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+          {description || "No description provided for this dataset project."}
+        </p>
+      </CardContent>
 
-        {/* DELETE */}
-        <button
-          onClick={handleDelete}
-          disabled={isDeleting}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-md hover:bg-red-50 text-red-500"
+      <CardFooter className="pt-4 border-t bg-slate-50/50 flex justify-between items-center py-3">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+          <Database className="h-3.5 w-3.5 text-indigo-400" />
+          <span>{rowCount > 0 ? `${rowCount.toLocaleString()} rows` : "No data"}</span>
+        </div>
+        
+        <Badge 
+          variant={rowCount > 0 ? "default" : "secondary"} 
+          className={`font-bold px-2.5 py-0.5 rounded-full border-none ${
+            rowCount > 0 
+              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" 
+              : "bg-amber-100 text-amber-700 hover:bg-amber-100"
+          }`}
         >
-          {isDeleting ? (
-            <span className="text-xs">...</span>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9z" clipRule="evenodd" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {/* DESCRIPTION */}
-      <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-        {description || "No description provided"}
-      </p>
-
-      {/* FOOTER / META */}
-      <div className="flex justify-between items-center text-xs text-gray-500 border-t pt-3">
-        <span>
-          {rowCount > 0 ? `${rowCount} rows` : "No data"}
-        </span>
-
-        <span
-          className={`px-2 py-0.5 rounded-full text-xs font-medium ${rowCount > 0
-              ? "bg-green-100 text-green-700"
-              : "bg-yellow-100 text-yellow-700"
-            }`}
-        >
-          {rowCount > 0 ? "Ready" : "Empty"}
-        </span>
-      </div>
-    </div>
+          {rowCount > 0 ? "READY" : "EMPTY"}
+        </Badge>
+      </CardFooter>
+    </Card>
   );
-};
+};

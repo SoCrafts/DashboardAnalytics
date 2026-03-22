@@ -10,6 +10,8 @@ using Features.Datasets.DeleteDataset;
 using Features.Datasets.GetDatasetRows;
 using Features.Datasets.UploadDataset;
 using Features.Datasets.PreviewDataset;
+using Features.Datasets.GetMetrics;
+using Features.Datasets.GetDatasetInsights;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
@@ -149,6 +151,8 @@ DeleteDatasetEndpoint.MapEndpoint(app);
 UploadDatasetEndpoint.MapEndpoint(app);
 PreviewDatasetEndpoint.MapEndpoint(app);
 GetDatasetRowsEndpoint.MapEndpoint(app);
+GetMetricsEndpoint.MapEndpoint(app);
+GetDatasetInsightsEndpoint.MapEndpoint(app);
 
 // Diagnostic Ping endpoint
 app.MapGet("/api/ping", () => Results.Ok(new { Message = "pong" }));
