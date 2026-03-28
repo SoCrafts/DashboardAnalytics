@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DashboardAnalyticsAPI.Infrastructure.Data;
 using DashboardAnalyticsAPI.Domain;
+using DashboardAnalyticsAPI.Features.Shared;
 
 namespace Features.Datasets.CreateDataset;
 
@@ -15,7 +16,10 @@ public static class CreateDataset
         DashboardContext db,
         ClaimsPrincipal user)
     {
-        var userId = Guid.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return Results.BadRequest(new { Message = "Dataset name is required." });
+
+        var userId = user.GetRequiredUserId();
 
         var dataset = new Dataset
         {

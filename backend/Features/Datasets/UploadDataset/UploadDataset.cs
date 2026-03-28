@@ -5,7 +5,8 @@ using System.Text.Json;
 using System.Security.Claims;
 using MiniExcelLibs;
 using System.IO;
-using System.Globalization; // ✅ IMPORTANT
+using System.Globalization;
+using DashboardAnalyticsAPI.Features.Shared;
 
 namespace Features.Datasets.UploadDataset;
 
@@ -18,19 +19,14 @@ public class UploadDatasetResponse
 
 public static class UploadDatasetHandler
 {
-    public static async Task<IResult> Handle(
-        Guid datasetId,
+    public static async Task<IResult> Handler(
+        Guid id,
         IFormFile file,
         DashboardContext db,
-        HttpContext httpContext)
+        ClaimsPrincipal user)
     {
-        var userId = GetUserId(httpContext);
-        if (userId == null)
-            return Results.Unauthorized();
-
-        var dataset = await db.Datasets.FirstOrDefaultAsync(d => d.Id == datasetId);
-        if (dataset == null || dataset.UserId != userId)
-            return Results.NotFound(new { Message = "Dataset not found or access denied." });
+        var (dataset, error) = await AuthorizationHelpers.GetOwnedDatasetAsync(id, db, user);
+        if (error != null) return error;
 
         if (file == null || file.Length == 0)
             return Results.BadRequest(new { Message = "No file uploaded." });
@@ -46,10 +42,10 @@ public static class UploadDatasetHandler
             if (headers.Count == 0)
                 return Results.BadRequest(new { Message = "Could not detect headers." });
 
-            var detectedColumns = DetectColumns(datasetId, rows, headers);
+            var detectedColumns = DetectColumns(id, rows, headers);
 
             var (insertedRowsCount, detectedColumnsCount) =
-                await SaveDatasetData(db, datasetId, detectedColumns, rows, headers);
+                await SaveDatasetData(db, id, detectedColumns, rows, headers);
 
             return Results.Ok(new UploadDatasetResponse
             {
@@ -64,16 +60,6 @@ public static class UploadDatasetHandler
         }
     }
 
-    private static Guid? GetUserId(HttpContext httpContext)
-    {
-        var user = httpContext.User;
-        var userIdString = user.FindFirst("sub")?.Value
-                           ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        return Guid.TryParse(userIdString, out var userId) ? userId : null;
-    }
-
-    // ✅ PARSE FILE + CLEAN ROWS
     internal static List<IDictionary<string, object>> ParseFile(IFormFile file)
     {
         using var stream = file.OpenReadStream();
@@ -91,7 +77,7 @@ public static class UploadDatasetHandler
 
         return stream.Query(useHeaderRow: true, excelType: excelType)
                      .Cast<IDictionary<string, object>>()
-                     .Select(CleanRow) // ✅ normalize once here
+                     .Select(CleanRow)
                      .Where(r => r.Count > 0)
                      .ToList();
     }
@@ -162,8 +148,6 @@ public static class UploadDatasetHandler
         return (datasetRows.Count, detectedColumns.Count);
     }
 
-
-    // ✅ TYPE DETECTION
     internal static string DetectDataType(List<IDictionary<string, object>> rows, string header)
     {
         int total = 0;
@@ -192,7 +176,6 @@ public static class UploadDatasetHandler
         return "string";
     }
 
-    // ✅ NORMALIZATION (FIXED)
     internal static object? NormalizeValue(object? value)
     {
         if (value == null)
@@ -216,7 +199,6 @@ public static class UploadDatasetHandler
         if (lower == "nan")
             return null;
 
-        // ✅ FIX decimal formats
         var normalized = str;
 
         if (str.Contains(",") && str.Contains("."))
@@ -233,7 +215,6 @@ public static class UploadDatasetHandler
             CultureInfo.InvariantCulture,
             out var num))
         {
-            // ✅ JS Precision Safety (Number.MAX_SAFE_INTEGER)
             if (num > 9007199254740991M || num < -9007199254740991M)
                 return str;
 
@@ -249,7 +230,6 @@ public static class UploadDatasetHandler
         return str;
     }
 
-    // ✅ CLEAN ROW (ONLY PLACE NORMALIZATION HAPPENS)
     internal static IDictionary<string, object> CleanRow(IDictionary<string, object> row)
     {
         var cleaned = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);

@@ -1,6 +1,7 @@
-using System.Security.Claims;
 using DashboardAnalyticsAPI.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using DashboardAnalyticsAPI.Features.Shared;
+using System.Security.Claims;
 
 namespace Features.Datasets.GetDataset;
 
@@ -24,30 +25,13 @@ public static class GetDataset
         DashboardContext db,
         ClaimsPrincipal user)
     {
-        var userIdString = user.FindFirst("sub")?.Value 
-                   ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var (dataset, error) = await AuthorizationHelpers.GetOwnedDatasetAsync(id, db, user);
+        if (error != null) return error;
 
-        if (!Guid.TryParse(userIdString, out var userId))
-        {
-            return Results.Unauthorized();
-        }   
-
-        var dataset = await db.Datasets
-            .Where(d => d.Id == id)
-            .Select(d => new { d.Id, d.Name, d.Description, d.CreatedAt, d.UserId })
-            .FirstOrDefaultAsync();
-
-        if (dataset == null || dataset.UserId != userId)
-        {
-            return Results.NotFound(new { Message = "Dataset not found" });
-        }
-
-        // Count DatasetRows WHERE DatasetId == id
         var rowCount = await db.DatasetRows
             .Where(r => r.DatasetId == id)
             .CountAsync();
 
-        // Fetch columns from DB
         var columns = await db.DatasetColumns
             .Where(c => c.DatasetId == id)
             .Select(c => new ColumnDto(c.Name, c.DataType))
@@ -57,7 +41,7 @@ public static class GetDataset
         var status = hasData ? "Ready" : "Empty";
 
         var response = new Response(
-            dataset.Id,
+            dataset!.Id,
             dataset.Name,
             dataset.Description,
             dataset.CreatedAt,

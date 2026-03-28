@@ -22,20 +22,23 @@ public class JwtTokenService : IJwtTokenService
 
     public string GenerateToken(User user)
     {
-        var key = _configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("Jwt:Key is not configured in appsettings.");
+        // Use same resolution order as Program.cs: env var first, then config
+        var key = Environment.GetEnvironmentVariable("JWT_KEY")
+            ?? _configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("JWT key is not configured. Set JWT_KEY env var or Jwt:Key in appsettings.");
         var issuer = _configuration["Jwt:Issuer"] ?? "DashboardAnalyticsAPI";
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var keyBytes = Encoding.UTF8.GetBytes(key);
 
         var claims = new List<Claim>
-{
-    new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), // keeps "sub"
-    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),   // also add this
-    new Claim("email", user.Email),
-    new Claim("role", user.Role)
-};
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim("email", user.Email),
+            new Claim("role", user.Role)
+        };
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

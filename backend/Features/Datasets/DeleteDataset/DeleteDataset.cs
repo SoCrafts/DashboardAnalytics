@@ -1,6 +1,6 @@
-using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
+using DashboardAnalyticsAPI.Features.Shared;
 using DashboardAnalyticsAPI.Infrastructure.Data;
+using System.Security.Claims;
 
 namespace Features.Datasets.DeleteDataset;
 
@@ -11,18 +11,12 @@ public static class DeleteDataset
         DashboardContext db,
         ClaimsPrincipal user)
     {
-        var userId = Guid.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var (dataset, error) = await AuthorizationHelpers.GetOwnedDatasetAsync(id, db, user);
+        if (error != null) return error;
 
-        var dataset = await db.Datasets
-            .FirstOrDefaultAsync(d => d.Id == id);
-
-        if (dataset == null)
-            return Results.NotFound();
-
-        if (dataset.UserId != userId)
-            return Results.Forbid();
-
-        db.Datasets.Remove(dataset);
+        // Cascade deletion of rows and columns is now handled by EF Core 
+        // via the configuration in DashboardContext.OnModelCreating.
+        db.Datasets.Remove(dataset!);
         await db.SaveChangesAsync();
 
         return Results.NoContent();

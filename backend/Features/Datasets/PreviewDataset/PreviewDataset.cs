@@ -1,8 +1,8 @@
-using System.Security.Claims;
-using DashboardAnalyticsAPI.Domain;
 using DashboardAnalyticsAPI.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Features.Datasets.UploadDataset;
+using DashboardAnalyticsAPI.Features.Shared;
+using System.Security.Claims;
 
 namespace Features.Datasets.PreviewDataset;
 
@@ -11,29 +11,14 @@ public static class PreviewDataset
     public record ColumnResponse(string Name, string DataType);
     public record Response(IEnumerable<ColumnResponse> Columns, IEnumerable<Dictionary<string, object?>> Rows);
 
-    public static async Task<IResult> Handle(
+    public static async Task<IResult> Handler(
         Guid id,
         IFormFile file,
         DashboardContext db,
         ClaimsPrincipal user)
     {
-        var userIdString = user.FindFirst("sub")?.Value 
-                   ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (!Guid.TryParse(userIdString, out var userId))
-        {
-            return Results.Unauthorized();
-        }
-
-        var dataset = await db.Datasets
-            .Where(d => d.Id == id)
-            .Select(d => new { d.Id, d.UserId })
-            .FirstOrDefaultAsync();
-
-        if (dataset == null || dataset.UserId != userId)
-        {
-            return Results.NotFound(new { Message = "Dataset not found" });
-        }
+        var (dataset, error) = await AuthorizationHelpers.GetOwnedDatasetAsync(id, db, user);
+        if (error != null) return error;
 
         if (file == null || file.Length == 0)
         {

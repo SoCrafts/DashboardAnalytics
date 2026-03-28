@@ -14,7 +14,7 @@ export interface Dataset {
 }
 
 export interface DatasetRow {
-  [key: string]: { value: any; raw: string | null };
+  [key: string]: string | number | boolean | null;
 }
 
 export interface Metric {

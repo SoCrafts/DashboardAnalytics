@@ -13,37 +13,53 @@ public static class Register
 
     public static void MapEndpoint(WebApplication app)
     {
-        app.MapPost("/api/auth/register", async (Request req, DashboardContext db, IPasswordHasher passwordHasher) =>
+        app.MapPost("/api/auth/register", Handler);
+    }
+
+    public static async Task<IResult> Handler(
+        Request request,
+        DashboardContext db,
+        IPasswordHasher passwordHasher)
+    {
+        // Validation
+        if (string.IsNullOrWhiteSpace(request.Username))
+            return Results.BadRequest(new { Message = "Username is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains("@"))
+            return Results.BadRequest(new { Message = "A valid email is required." });
+
+        if (string.IsNullOrEmpty(request.Password) || request.Password.Length < 6)
+            return Results.BadRequest(new { Message = "Password must be at least 6 characters long." });
+
+        if (await db.Users.AnyAsync(u => u.Email == request.Email))
         {
-            try 
+            return Results.Conflict(new { Message = "User with this email already exists" });
+        }
+
+        try
+        {
+            var user = new User
             {
-                if (await db.Users.AnyAsync(u => u.Email == req.Email))
-                    return Results.Conflict(new { Message = "Email already registered" });
+                Id = Guid.NewGuid(),
+                Username = request.Username,
+                Email = request.Email,
+                PasswordHash = passwordHasher.Hash(request.Password),
+                Role = "User",
+                CreatedAt = DateTime.UtcNow
+            };
 
-                var user = new User
-                {
-                    Id = Guid.NewGuid(),
-                    Username = req.Username,
-                    Email = req.Email,
-                    PasswordHash = passwordHasher.Hash(req.Password),
-                    Role = "User",
-                    CreatedAt = DateTime.UtcNow
-                };
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
 
-                db.Users.Add(user);
-                await db.SaveChangesAsync();
-
-                return Results.Ok(new { Message = "User registered successfully" });
-            }
-            catch (Exception ex)
-            {
-                // Directly return the exception as JSON so it doesn't kill the TCP connection.
-                return Results.Problem(
-                    title: "Registration Error",
-                    detail: ex.ToString(),
-                    statusCode: 500
-                );
-            }
-        });
+            return Results.Ok(new { Message = "User registered successfully" });
+        }
+        catch (Exception)
+        {
+            return Results.Problem(
+                title: "Registration Error",
+                detail: "An unexpected error occurred during registration. Please try again.",
+                statusCode: 500
+            );
+        }
     }
 }

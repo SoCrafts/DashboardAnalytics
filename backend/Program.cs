@@ -44,11 +44,15 @@ builder.Services.AddDbContext<DashboardContext>(options =>
 // Enable global CORS to ensure no cross-origin errors manifest when calling the API from the deployed frontend
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("frontend", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                builder.Configuration["FrontendUrl"] ?? "http://localhost:5173",
+                "https://localhost:5173"
+              )
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -102,13 +106,10 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    // app.MapOpenApi();
-}
-else
+app.UseSwagger();
+app.UseSwaggerUI();
+
+if (!app.Environment.IsDevelopment())
 {
     // Production safety:
     // - Hide detailed exceptions
@@ -117,16 +118,13 @@ else
     app.UseHsts();
 }
 
-app.UseSwagger();
-app.UseSwaggerUI();
-
 app.UseHttpsRedirection();
 
 // Serve compiled React SPA from wwwroot (place the build output here before publishing).
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.UseCors("frontend");
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -141,7 +139,7 @@ app.Map("/error", (HttpContext context, ILoggerFactory loggerFactory) =>
     return Results.Problem("An unexpected error occurred.");
 });
 
-// Map endpoints direttamente dalle feature
+// Map feature endpoints
 Register.MapEndpoint(app);
 Login.MapEndpoint(app);
 CreateDatasetEndpoint.MapEndpoint(app);

@@ -8,4 +8,6 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = "User";
     public DateTime CreatedAt { get; set; }
+
+    public ICollection<Dataset> Datasets { get; set; } = new List<Dataset>();
 }
