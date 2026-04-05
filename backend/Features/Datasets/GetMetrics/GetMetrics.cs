@@ -1,7 +1,7 @@
 using DashboardAnalyticsAPI.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 using DashboardAnalyticsAPI.Features.Shared;
+using DashboardAnalyticsAPI.Domain;
 using System.Security.Claims;
 
 namespace Features.Datasets.GetMetrics;
@@ -19,26 +19,32 @@ public static class GetMetrics
         if (error != null) return error;
 
         var columns = await db.DatasetColumns
-            .Where(c => c.DatasetId == id && c.DataType == "number")
+            .Where(c => c.DatasetId == id && c.DataType == ColumnDataType.Number)
             .ToListAsync();
 
-        var rows = await db.DatasetRows
+        if (columns.Count == 0)
+            return Results.Ok(Array.Empty<MetricResponse>());
+
+        var rowsJson = await db.DatasetRows
             .Where(r => r.DatasetId == id)
             .Select(r => r.JsonData)
             .ToListAsync();
 
-        var metrics = new List<MetricResponse>();
+        // Parse all rows once; extract each numeric column from the pre-parsed elements
+        var columnData = AnalysisHelpers.ExtractAllColumns(rowsJson, columns.Select(c => c.Name));
+
+        var metrics = new List<MetricResponse>(columns.Count);
 
         foreach (var col in columns)
         {
-            var values = AnalysisHelpers.ExtractNumericValues(rows, col.Name);
+            var values = AnalysisHelpers.GetNumericValues(columnData[col.Name]);
+            if (values.Count == 0) continue;
 
-            if (values.Any())
-            {
-                var sum = values.Sum();
-                var count = values.Count();
-                metrics.Add(new MetricResponse(col.Name, sum, sum / count, count));
-            }
+            metrics.Add(new MetricResponse(
+                col.Name,
+                Sum:   values.Sum(),
+                Avg:   values.Average(),
+                Count: values.Count));
         }
 
         return Results.Ok(metrics);

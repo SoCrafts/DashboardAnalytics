@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using DashboardAnalyticsAPI.Domain;
 
@@ -13,23 +14,16 @@ public interface IJwtTokenService
 
 public class JwtTokenService : IJwtTokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly JwtOptions _options;
 
-    public JwtTokenService(IConfiguration configuration)
+    public JwtTokenService(IOptions<JwtOptions> options)
     {
-        _configuration = configuration;
+        _options = options.Value;
     }
 
     public string GenerateToken(User user)
     {
-        // Use same resolution order as Program.cs: env var first, then config
-        var key = Environment.GetEnvironmentVariable("JWT_KEY")
-            ?? _configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("JWT key is not configured. Set JWT_KEY env var or Jwt:Key in appsettings.");
-        var issuer = _configuration["Jwt:Issuer"] ?? "DashboardAnalyticsAPI";
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var keyBytes = Encoding.UTF8.GetBytes(key);
+        var keyBytes = Encoding.UTF8.GetBytes(_options.Key);
 
         var claims = new List<Claim>
         {
@@ -41,15 +35,15 @@ public class JwtTokenService : IJwtTokenService
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddHours(1),
-            Issuer = issuer,
+            Subject            = new ClaimsIdentity(claims),
+            Expires            = DateTime.UtcNow.AddHours(1),
+            Issuer             = _options.Issuer,
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(keyBytes),
                 SecurityAlgorithms.HmacSha256Signature)
         };
 
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
+        var handler = new JwtSecurityTokenHandler();
+        return handler.WriteToken(handler.CreateToken(tokenDescriptor));
     }
 }

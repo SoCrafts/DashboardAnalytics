@@ -4,7 +4,8 @@ import {
   useDataset, 
   useDatasetRows, 
   usePreviewDataset, 
-  useUploadDataset 
+  useUploadDataset,
+  type PreviewResult
 } from "../api/datasetApi";
 import { DatasetHeader } from "../components/DatasetHeader";
 import { DatasetActions } from "../components/DatasetActions";
@@ -19,7 +20,7 @@ export function DatasetDetailPage() {
   const { id } = useParams({ from: '/datasets/$id' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [previewData, setPreviewData] = useState<{ columns: any[]; rows: any[] } | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewResult | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
 

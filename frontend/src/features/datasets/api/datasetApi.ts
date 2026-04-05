@@ -1,7 +1,20 @@
 import { apiClient } from "@/shared/apiClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-// Types
+// ── Shared primitive types ────────────────────────────────────────────────────
+
+export interface DatasetColumn {
+  name: string;
+  dataType: string;
+}
+
+/** A single data row: keys are column names, values are the stored cell values. */
+export interface DatasetRow {
+  [key: string]: string | number | boolean | null;
+}
+
+// ── API response types ────────────────────────────────────────────────────────
+
 export interface Dataset {
   id: string;
   name: string;
@@ -10,15 +23,24 @@ export interface Dataset {
   rowCount: number;
   status: "Empty" | "Ready";
   hasData: boolean;
-  columns: { name: string; dataType: string }[];
+  columns: DatasetColumn[];
 }
 
-export interface DatasetRow {
-  [key: string]: string | number | boolean | null;
+export interface DatasetRowsResult {
+  columns: DatasetColumn[];
+  rows: DatasetRow[];
+  totalRows: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface PreviewResult {
+  columns: DatasetColumn[];
+  rows: DatasetRow[];
 }
 
 export interface Metric {
-  name: string;
+  column: string;
   sum: number;
   avg: number;
   count: number;
@@ -47,58 +69,64 @@ export interface SummaryData {
 }
 
 export interface DatasetInsights {
-  categorical: Record<string, CategoryData[]>;
+  categorical:   Record<string, CategoryData[]>;
   distributions: Record<string, DistributionData[]>;
-  trends: Record<string, TrendData[]>;
-  summary: Record<string, SummaryData>;
+  trends:        Record<string, TrendData[]>;
+  summary:       Record<string, SummaryData>;
 }
 
-// Fetchers
-export const getDatasets = async (): Promise<Dataset[]> => {
-  const res = await apiClient.get("/datasets");
-  return res.data;
-};
+export interface UploadResult {
+  message: string;
+  rowsInserted: number;
+  columnsDetected: number;
+}
 
-export const getDataset = async (id: string): Promise<Dataset> => {
-  const res = await apiClient.get(`/datasets/${id}`);
-  return res.data;
-};
+// ── Fetcher functions ─────────────────────────────────────────────────────────
 
-export const getDatasetRows = async (id: string, page = 1, pageSize = 10) => {
-  const res = await apiClient.get(`/datasets/${id}/rows`, {
-    params: { page, pageSize },
-  });
-  return res.data;
-};
+export const getDatasets = (): Promise<Dataset[]> =>
+  apiClient.get<Dataset[]>("/datasets").then(r => r.data);
 
-export const getDatasetMetrics = async (id: string): Promise<{ columns: Metric[] }> => {
-  const res = await apiClient.get(`/datasets/${id}/metrics`);
-  return res.data;
-};
+export const getDataset = (id: string): Promise<Dataset> =>
+  apiClient.get<Dataset>(`/datasets/${id}`).then(r => r.data);
 
-export const getDatasetInsights = async (id: string): Promise<DatasetInsights> => {
-  const res = await apiClient.get(`/datasets/${id}/insights`);
-  return res.data;
-};
+export const getDatasetRows = (id: string, page = 1, pageSize = 10): Promise<DatasetRowsResult> =>
+  apiClient.get<DatasetRowsResult>(`/datasets/${id}/rows`, { params: { page, pageSize } })
+    .then(r => r.data);
 
-// Hooks
-export const useDatasets = () => useQuery({ queryKey: ["datasets"], queryFn: getDatasets });
+export const getDatasetMetrics = (id: string): Promise<Metric[]> =>
+  apiClient.get<Metric[]>(`/datasets/${id}/metrics`).then(r => r.data);
 
-export const useDataset = (id: string) => 
+export const getDatasetInsights = (id: string): Promise<DatasetInsights> =>
+  apiClient.get<DatasetInsights>(`/datasets/${id}/insights`).then(r => r.data);
+
+// ── React Query hooks ─────────────────────────────────────────────────────────
+
+export const useDatasets = () =>
+  useQuery({ queryKey: ["datasets"], queryFn: getDatasets });
+
+export const useDataset = (id: string) =>
   useQuery({ queryKey: ["datasets", id], queryFn: () => getDataset(id), enabled: !!id });
 
-export const useDatasetRows = (id: string, page: number, pageSize: number) => 
-  useQuery({ 
-    queryKey: ["datasets", id, "rows", { page, pageSize }], 
-    queryFn: () => getDatasetRows(id, page, pageSize),
-    enabled: !!id 
+export const useDatasetRows = (id: string, page: number, pageSize: number) =>
+  useQuery({
+    queryKey: ["datasets", id, "rows", { page, pageSize }],
+    queryFn:  () => getDatasetRows(id, page, pageSize),
+    enabled:  !!id,
   });
 
-export const useDatasetMetrics = (id: string) => 
-  useQuery({ queryKey: ["datasets", id, "metrics"], queryFn: () => getDatasetMetrics(id), enabled: !!id });
+export const useDatasetMetrics = (id: string) =>
+  useQuery({
+    queryKey: ["datasets", id, "metrics"],
+    queryFn:  () => getDatasetMetrics(id),
+    enabled:  !!id,
+  });
 
-export const useDatasetInsights = (id: string) => 
-  useQuery({ queryKey: ["datasets", id, "insights"], queryFn: () => getDatasetInsights(id), enabled: !!id });
+export const useDatasetInsights = (id: string) =>
+  useQuery({
+    queryKey: ["datasets", id, "insights"],
+    queryFn:  () => getDatasetInsights(id),
+    enabled:  !!id,
+  });
 
 export const useUploadDataset = () => {
   const queryClient = useQueryClient();
@@ -106,29 +134,29 @@ export const useUploadDataset = () => {
     mutationFn: ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData();
       formData.append("file", file);
-      return apiClient.post(`/datasets/${id}/upload`, formData);
+      return apiClient.post<UploadResult>(`/datasets/${id}/upload`, formData);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["datasets", variables.id] });
-    }
+    },
   });
 };
 
-export const usePreviewDataset = () => {
-  return useMutation({
+export const usePreviewDataset = () =>
+  useMutation({
     mutationFn: ({ id, file }: { id: string; file: File }) => {
       const formData = new FormData();
       formData.append("file", file);
-      return apiClient.post(`/datasets/${id}/preview`, formData);
-    }
+      return apiClient.post<PreviewResult>(`/datasets/${id}/preview`, formData);
+    },
   });
-};
 
 export const useCreateDataset = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; description: string }) => apiClient.post("/datasets", data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["datasets"] })
+    mutationFn: (data: { name: string; description: string }) =>
+      apiClient.post<Dataset>("/datasets", data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["datasets"] }),
   });
 };
 
@@ -136,6 +164,6 @@ export const useDeleteDataset = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiClient.delete(`/datasets/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["datasets"] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["datasets"] }),
   });
 };

@@ -5,21 +5,22 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Upload, LayoutGrid, Table as TableIcon, FileSearch, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DatasetColumn, DatasetRow, PreviewResult } from "../api/datasetApi";
 
 interface DatasetContentProps {
-  datasetId: string;
-  previewData: { columns: any[]; rows: any[] } | null;
-  rows: any[];
-  columns: { name: string; dataType: string }[];
-  totalRows: number;
-  hasData: boolean;
-  isProcessing: boolean;
-  onConfirmUpload: () => void;
-  onCancelPreview: () => void;
-  onImportClick: () => void;
-  page: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
+  datasetId:        string;
+  previewData:      PreviewResult | null;
+  rows:             DatasetRow[];
+  columns:          DatasetColumn[];
+  totalRows:        number;
+  hasData:          boolean;
+  isProcessing:     boolean;
+  onConfirmUpload:  () => void;
+  onCancelPreview:  () => void;
+  onImportClick:    () => void;
+  page:             number;
+  pageSize:         number;
+  onPageChange:     (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }
 
@@ -61,7 +62,7 @@ export function DatasetContent({
                 disabled={isProcessing}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 font-bold shadow-lg shadow-indigo-200 rounded-xl h-11 transition-all hover:translate-y-[-1px]"
               >
-                {isProcessing ? "Importing..." : "Finalize Import"}
+                {isProcessing ? "Importing…" : "Finalize Import"}
               </Button>
             </div>
           </div>
@@ -93,7 +94,9 @@ export function DatasetContent({
         </div>
         <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tight">Knowledge Base Empty</h2>
         <p className="text-slate-500 mb-10 max-w-sm mx-auto text-lg leading-relaxed">
-          Unlock deep insights by importing your <span className="text-indigo-600 font-bold uppercase tracking-tighter">CSV</span> or <span className="text-indigo-600 font-bold uppercase tracking-tighter">Excel</span> assets.
+          Unlock deep insights by importing your{" "}
+          <span className="text-indigo-600 font-bold uppercase tracking-tighter">CSV</span> or{" "}
+          <span className="text-indigo-600 font-bold uppercase tracking-tighter">Excel</span> assets.
         </p>
         <Button
           size="lg"
@@ -118,14 +121,14 @@ export function DatasetContent({
             <p className="text-slate-500 font-medium text-lg">Multi-dimensional data analysis and exploration</p>
           </div>
           <TabsList className="bg-slate-100/80 backdrop-blur-sm p-1.5 h-auto rounded-2xl border border-slate-200 shadow-inner">
-            <TabsTrigger 
-              value="visuals" 
+            <TabsTrigger
+              value="visuals"
               className="rounded-xl gap-2.5 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-md px-6 py-2.5 font-bold transition-all"
             >
               <LayoutGrid className="h-4.5 w-4.5" /> Visuals
             </TabsTrigger>
-            <TabsTrigger 
-              value="explorer" 
+            <TabsTrigger
+              value="explorer"
               className="rounded-xl gap-2.5 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-md px-6 py-2.5 font-bold transition-all"
             >
               <TableIcon className="h-4.5 w-4.5" /> Explorer
@@ -138,9 +141,9 @@ export function DatasetContent({
         </TabsContent>
 
         <TabsContent value="explorer" className="mt-0 focus-visible:outline-none focus:outline-none">
-          <DatasetTable 
-            columns={columns} 
-            rows={rows} 
+          <DatasetTable
+            columns={columns}
+            rows={rows}
             totalRows={totalRows}
             page={page}
             pageSize={pageSize}

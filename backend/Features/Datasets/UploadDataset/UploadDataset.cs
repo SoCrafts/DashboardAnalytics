@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Security.Claims;
 using MiniExcelLibs;
-using System.IO;
 using System.Globalization;
 using DashboardAnalyticsAPI.Features.Shared;
 
@@ -165,15 +164,15 @@ public static class UploadDatasetHandler
             else if (val is bool) bools++;
         }
 
-        if (total == 0) return "string";
+        if (total == 0) return ColumnDataType.String;
 
-        double threshold = 0.8;
+        const double threshold = 0.8;
 
-        if ((double)numbers / total > threshold) return "number";
-        if ((double)dates / total > threshold) return "date";
-        if ((double)bools / total > threshold) return "boolean";
+        if ((double)numbers / total > threshold) return ColumnDataType.Number;
+        if ((double)dates  / total > threshold) return ColumnDataType.Date;
+        if ((double)bools  / total > threshold) return ColumnDataType.Boolean;
 
-        return "string";
+        return ColumnDataType.String;
     }
 
     internal static object? NormalizeValue(object? value)

@@ -27,13 +27,21 @@ var databaseConnectionString =
     ?? throw new InvalidOperationException(
         "Database connection string is missing. Set DATABASE_CONNECTION_STRING or configure ConnectionStrings:DefaultConnection.");
 
-var jwtKey =
-    Environment.GetEnvironmentVariable("JWT_KEY")
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
     ?? builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException(
         "JWT key is missing. Set JWT_KEY or configure Jwt:Key (Development only).");
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DashboardAnalyticsAPI";
+
+// Register typed JWT options — resolved exactly once here, injected everywhere
+builder.Services.AddSingleton(
+    Microsoft.Extensions.Options.Options.Create(
+        new DashboardAnalyticsAPI.Infrastructure.Auth.JwtOptions
+        {
+            Key    = jwtKey,
+            Issuer = jwtIssuer
+        }));
 
 // DbContext
 builder.Services.AddDbContext<DashboardContext>(options =>
@@ -140,8 +148,8 @@ app.Map("/error", (HttpContext context, ILoggerFactory loggerFactory) =>
 });
 
 // Map feature endpoints
-Register.MapEndpoint(app);
-Login.MapEndpoint(app);
+RegisterEndpoint.MapEndpoint(app);
+LoginEndpoint.MapEndpoint(app);
 CreateDatasetEndpoint.MapEndpoint(app);
 GetDatasetsEndpoint.MapEndpoint(app);
 GetDatasetEndpoint.MapEndpoint(app);
